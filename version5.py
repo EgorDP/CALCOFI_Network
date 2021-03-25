@@ -1,6 +1,8 @@
 import json
 import numpy as np
-from scipy import stats 
+from scipy import stats
+import networkx as nx 
+import matplotlib.pyplot as plt
 nameToIndex = {}
 indexToName = {}
 specieCount = 0
@@ -9,12 +11,13 @@ sampleCount = 0
 TIME_ROW = 10
 NAME_ROW = 11
 LARVAE_ROW = 16
+THRESHOLD = 0.7
 
-def network(fileName):
+def network(dataFile, infoFile, networkFile):
     global specieCount 
     global sampleCount 
     #Parses file to count total number of distinct samples and species 
-    file = open(fileName)
+    file = open(dataFile)
     data = json.load(file)
     for i in data['table']['rows']:
         time = int(i[TIME_ROW][11:13] + i[TIME_ROW][14:16] + i[TIME_ROW][17:19])
@@ -31,49 +34,59 @@ def network(fileName):
     file.close()
     #Parses data to create matrix of larvae counts with sampleCount rows and specieCount columns 
     matrixCount = np.zeros((sampleCount, specieCount), float)
+    nameIndex = 0
+    timeIndex = 0
     for i in data['table']['rows']:
         time = int(i[TIME_ROW][11:13] + i[TIME_ROW][14:16] + i[TIME_ROW][17:19])
         name = i[NAME_ROW]
         larvaeCount = i[LARVAE_ROW]
-        nameIndex = 0
-        timeIndex = 0
         nameIndex = nameToIndex[name]
         timeIndex = sampleToIndex[time]
         #Add larvae counts to matrix
         matrixCount[timeIndex][nameIndex] = larvaeCount
-    print(matrixCount)
-    sourceFile = open('test', 'w')
-    print(matrixCount, file = sourceFile)
-    sourceFile.close()
     #Get adjacency matrix
     matrixAd = correlate(matrixCount)
-    #Create network from adjacency matrix 
-
+    #Create network from adjacency matrix
+    graph(matrixAd, infoFile, networkFile) 
 
 def correlate(counts):
-    sourceFile = open('test', 'w')
-    #print(matrixCount, file = sourceFile)
-    #sourceFile = open('test', 'w')
-    #print(matrixCount, file = sourceFile)
-    #sourceFile.close()
     #Creates adjacency matrix 
     adjacency = np.zeros((specieCount, specieCount), float)
-    i = 0
-    j = 0
     for i in range(specieCount):
         for j in range(specieCount):
             if j > i:
                 adjacency[i][j] = stats.spearmanr(counts[:, i], counts[:, j])[0]
-    print(adjacency)
-    sourceFile = open('test', 'w')
-    print(adjacency, file = sourceFile)
-    sourceFile.close()
     return adjacency 
+
+def graph(matrixAd, dataFile, imageFile):
+    #Creates graph with edges whose |edge weight| > minimum threshold 
+    g = nx.Graph()
+    for i in range(specieCount): 
+        for j in range(specieCount):
+            if j > i and (matrixAd[i][j] > THRESHOLD or matrixAd[i][j] < -1*THRESHOLD): 
+                g.add_edge(str(i) + ": " + indexToName[i], str(j) + ": " + indexToName[j], weight = matrixAd[i][j])
+    pos = nx.spring_layout(g, k=0.1, iterations=10)
+    nodeLabels = {n: n.partition(':')[0] for n in g.nodes}
+    nx.draw_networkx_nodes(g, pos, node_size = 50)
+    nx.draw_networkx_labels(g, pos, font_size = 8, labels=nodeLabels)
+    nx.draw_networkx_edges(g, pos)
+    outputFile = open(dataFile, 'w')
+    #Prints a key that maps the node numbers of the network to the species name to info file
+    print("Key for network nodes:", file=outputFile)
+    print(indexToName, file=outputFile)
+    print("", file=outputFile)
+    #Prints the edge list of the network to the info file 
+    print("Edge list for network:", file=outputFile)
+    outputFile.close()
+    outputFile = open(dataFile, 'ab')
+    nx.write_weighted_edgelist(g, outputFile, delimiter=', ')
+    outputFile.close()
+    #Saves network to the file specified 
+    plt.savefig(imageFile)
 
 def main():
     #Create networks 
-    network("2015_data.json")
-    #network("")
+    network("2015_data.json", "2015_network_info", "2015_network.png")
 
 #Call to main 
 main() 
