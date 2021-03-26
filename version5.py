@@ -8,9 +8,9 @@ indexToName = {}
 specieCount = 0
 sampleToIndex = {}
 sampleCount = 0
-TIME_ROW = 10
-NAME_ROW = 11
-LARVAE_ROW = 16
+TIME_ROW = 0
+NAME_ROW = 1
+LARVAE_ROW = 2
 THRESHOLD = 0.7
 
 def network(dataFile, infoFile, networkFile):
@@ -62,10 +62,13 @@ def graph(matrixAd, dataFile, imageFile):
     #Creates graph with edges whose |edge weight| > minimum threshold 
     g = nx.Graph()
     for i in range(specieCount): 
+        #Add all nodes (unqiue species)
+        g.add_node(str(i) + ":" + indexToName[i])
         for j in range(specieCount):
+            #Add edges if |correlation| between species is greater than chosen threshold  
             if j > i and (matrixAd[i][j] > THRESHOLD or matrixAd[i][j] < -1*THRESHOLD): 
                 g.add_edge(str(i) + ": " + indexToName[i], str(j) + ": " + indexToName[j], weight = matrixAd[i][j])
-    pos = nx.spring_layout(g, k=0.1, iterations=10)
+    pos = nx.spring_layout(g, k= 0.11, iterations=12)
     nodeLabels = {n: n.partition(':')[0] for n in g.nodes}
     nx.draw_networkx_nodes(g, pos, node_size = 50)
     nx.draw_networkx_labels(g, pos, font_size = 8, labels=nodeLabels)
@@ -86,7 +89,8 @@ def graph(matrixAd, dataFile, imageFile):
 
 def main():
     #Create networks 
-    network("2015_data.json", "2015_network_info", "2015_network.png")
+    network("2015data.json", "2015networkinfo", "2015network.png")
+    #network(input_data_file, output_network_info_file, output_network_file)
 
 #Call to main 
 main() 
