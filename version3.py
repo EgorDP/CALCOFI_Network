@@ -1,10 +1,24 @@
+#%%
 import json
 import numpy as np
+import networkx as nx
+import matplotlib as mt
+import matplotlib.pyplot as plt
 from scipy import stats
 
-# Testing
+# Visuals
+NAMES_IN_PERIODS = False
+
+# Rows Of Data
+DATA_RANGE = 50
+
+# Debug Info
 debug_bool = True
-DATA_RANGE = 21
+
+# Variables set to column they appear in the datashet
+LARVAE = 16   
+TIME = 10               
+SCIENTIFIC_NAME = 11    
 
 animal_dict = {}        # Dictionary of (animals, index) for matrix
 time1 = []              # Time  0:01 -  6:00
@@ -22,16 +36,12 @@ animal4 = {}
 time1_count, time2_count, time3_count, time4_count = 0,0,0,0 # Counts of specific times in the time periods
 matrix1, matrix2, matrix3, matrix4 = None,None,None,None
 animal_count = 0
-LARVAE = 16   # Variables set to corresponding column they appear in the datashet
-TIME = 10               
-SCIENTIFIC_NAME = 11    
-
-
 
 def debug(s):
     if(debug_bool):
         print(s)
 
+# Class to store animal information, one instance for each sample an animal appears in
 class Animal:
     def __init__(self, name, time, larvae):
         self.name = name
@@ -52,23 +62,30 @@ def processTime(str):
         second = int(str[-2:-1])
     return first * 100 + second
 
-# Ex: 04/03 at 44:12 -> 4000000 + 30000 + 4400 + 12 = 4034412
+
 def processDate(str):
-    ''' Process data into a numberical format, e.g. 04/03 -> 4 * 1000000 + 3 * 10000 = 4030000'''
+    ''' Process data into a numberical format
+    \n e.g. 04/03 -> 4 * 1000000 + 3 * 10000 = 4030000
+    \n Combined with output of processTime(), their sum will be: 04/03 at 44:12 -> 4000000 + 30000 + 4400 + 12 = 4034412'''
     first = 0
     second = 0
     if(str[0] == '0'):    #If date starts with 0 in leading month's place, get only second place
         first = int(str[1])
     else:
         first = int(str[0:2])
-    if(str[4] == '0'):   #If date ends with 0 in the leading date's place, get only second place
-        second = int(str[5])
+    if(str[3] == '0'):   #If date ends with 0 in the leading date's place, get only second place
+        second = int(str[4])
     else:
         second = int(str[3:4])
     return (first * 1000000) + (second * 10000)
 
 def create_animal_dict(fileName) -> dict:
-    ''' Partition the data from a JSON file into animal groups based on location ''' 
+    ''' Partitions the data from a JSON file into time periods
+        \nCalls the appropriate methods to convert the information in the time periods
+        to matrices representing animals vs samples (each value is the amount of larvae
+        per 10 meters in a sample)
+        \nCalls correlation methods and subsequently visualization methods on these matrices
+    ''' 
     file = open(fileName)                         # Open buffer
     data = json.load(file)
 
@@ -115,14 +132,14 @@ def create_animal_dict(fileName) -> dict:
                 if time not in time1_times:
                     time1_times[time] = time1_count  # Set the new time to a new index (for matrix computations)
                     time1_count = time1_count + 1
-                if name not in animal1:
+                if name not in animal1:              # Keep track of the animals in this time period only
                     animal1[name] = animal1_count 
                     animal1_count = animal1_count + 1
-        elif time < 1200:
+        elif time < 1200:           # Repeat actions above, now for time period 2
                 time2.append(animal) 
                 time = time + date 
                 if time not in time2_times:
-                    time2_times[time] = time2_count  # Set the new time to a new index (for matrix computations)
+                    time2_times[time] = time2_count  
                     time2_count = time2_count + 1
                 if name not in animal2:
                     animal2[name] = animal2_count 
@@ -131,7 +148,7 @@ def create_animal_dict(fileName) -> dict:
                 time3.append(animal)
                 time = time + date 
                 if time not in time3_times:
-                    time3_times[time] = time3_count  # Set the new time to a new index (for matrix computations)
+                    time3_times[time] = time3_count  
                     time3_count = time3_count + 1
                 if name not in animal3:
                     animal3[name] = animal3_count 
@@ -140,7 +157,7 @@ def create_animal_dict(fileName) -> dict:
                 time4.append(animal)
                 time = time + date 
                 if time not in time4_times:
-                    time4_times[time] = time4_count  # Set the new time to a new index (for matrix computations)
+                    time4_times[time] = time4_count  
                     time4_count = time4_count + 1
                 if name not in animal4:
                     animal4[name] = animal4_count 
@@ -151,38 +168,34 @@ def create_animal_dict(fileName) -> dict:
            animal_count = animal_count + 1
         limit = limit + 1
         if limit > DATA_RANGE:
-            break      
-    print("Time 1")
-    for i in time1:
-        print(i.name)
-    print("Time 2")
-    for i in time2:
-        print(i.name)
-    print("Time 3")
-    for i in time3:
-        print(i.name)
-    print("Time 4")
-    for i in time4:
-        print(i.name)
+            break 
+    if(NAMES_IN_PERIODS):  # Display the animals in the periods if necessary
+        print("Time 1")
+        for i in time1:
+            print(i.name)
+        print("Time 2")
+        for i in time2:
+            print(i.name)
+        print("Time 3")
+        for i in time3:
+            print(i.name)
+        print("Time 4")
+        for i in time4:
+            print(i.name)
     file.close() # Close buffer
     print()
-    print("Sample count: " + str(time1_count + time2_count + time3_count + time4_count) + ", matrix should have this many rows")
-    
+    #print("Sample count: " + str(time1_count + time2_count + time3_count + time4_count) + ", matrix should have this many rows")
+ 
     matrix1= time_to_matrixAnimals(time1, time1_times, animal1)
     #matrix2 = time_to_matrix(time2, time2_times)
     #matrix3 = time_to_matrix(time3, time3_times)
     #matrix4 = time_to_matrix(time4, time4_times)
-    correlate(matrix1)
+    matrix1_correlated = correlate(matrix1, animal1)
+    createGraph(matrix1_correlated)
     #correlate(matrix2)
     #correlate(matrix3)
     #correlate(matrix4)
 
-# Converts the Animal objects in the time list to a matrix grouped by samples, each sample list has its species with the larvae amount per 10 meters as the value
-# i.e This graph would dictate 10 larvae per 10 meters found in sample1 for Animal2, 30 larvae per 10 meters found in sample1 for Animal3, etc. 
-# (List of Samples)    Animal1 Animal2 Animal3 Animal4
-#  Sample1               0      10      30     40 
-#  Sample2               20     30      5      50
-#
 # @param time : time period with all animal objects that appear during that period
 # @param time_times : all specific times within a time period
 def time_to_matrix(time, time_times, animal):
@@ -200,15 +213,11 @@ def time_to_matrix(time, time_times, animal):
         print(i)
     return Matrix
 
-# Same as time_to_matrix method, except this organizes by animals instead of samples
-# i.e Animal1 has 20 larvae per 10 meters in sample2, Animal2 has 10 larvae per 10 meters in Sample1, etc. 
-# (List of Animals)  Sample1 Sample2
-# Animal1             0        20
-# Animal2             10       30
-# Animal3             30        5
-# Animal4             40       50 
-#
+# Same as time_to_matrix except organized by species and not samples
 def time_to_matrixAnimals(time, time_times, animal):
+    #A = np.arrange(20).reshape(4,5)
+    # So for each entry in time, we get its name and it's time. Use the dictionary to compute where to find it in the matrix
+        #time_times.sort()
 
     # Matrix for x axis: animals, y  axis: sample (categorized by the time)
     # Creates a list containing (Samples) amount of lists, each with (animal_count) items
@@ -217,7 +226,7 @@ def time_to_matrixAnimals(time, time_times, animal):
     Matrix = [[0 for x in range(w)] for y in range(h)] 
 
     for i in time:
-        x = animal[i.name]    # Get index corresponding to animal name
+        x = animal[i.name]         # Get index corresponding to animal name
         y = time_times[i.time]     # Get index correspondiing to animal time in the sample
         Matrix[x][y] = i.larvae
 
@@ -225,22 +234,68 @@ def time_to_matrixAnimals(time, time_times, animal):
         print(i)
     return Matrix
 
-# Correlate the animal's larvae counts over different sample times 
-# Uses the matrix generated by time_to_matrixAnimals to correlate n amount of Animals by each row 
-def correlate(matrix):
+# Correlate specie's larvae counts over different sample times 
+def correlate(matrix, animal):
     print(1)
-    if len(matrix) < 2:
-        return -1   
+    if len(matrix) < 2:  # If there is only 1 animal, no correlation can exist
+        return -1
 
-    temp = np.array(matrix)   # Convert matrix to np array for np.corrcoef usage
-    correlation_matrix = np.corrcoef(temp)
-    for i in correlation_matrix:
+    a = np.array(matrix)
+    b = np.corrcoef(a)
+    for i in b:
         print(i)
         print()
     
+    i = 0
+    #list_total = []
+    #for b in b:
+        #list_total.append(b)
+    for key in animal:   # Update the animal dict with correlation lists (for use in creating the network)
+        animal[key] = b[i]
+        i = i+1
+    for key,value in animal.items():
+        print(key, ' : ', value)
+    return animal
+        
+def createGraph(matrix):
+    #G = nx.from_dict_of_lists(matrix)  # TODO: Add a graph constructor
+    #G = nx.Graph(matrix)
+    #G2 = nx.adjacency_matrix(matrix)
+    
+    G = nx.Graph()
+    nodes = matrix.keys()
+    #edges = [(j,k,w) for j in matrix.keys() for k in matrix.keys() for w in matrix[j]]
+    
+    list_anim = []
+    for key in matrix:
+        list_anim.append(key)
 
-def main():
+    for key in matrix:
+        index = 0
+        for i in matrix[key]:
+            if(i>0):
+                G.add_edge(key, list_anim[index],weight = round(i,2) )
+            index = index + 1
+    G.add_nodes_from(nodes)
+    #G.add_weighted_edges_from(edges)
+
+    #pos = nx.spring_layout(G, k=0.20, iterations=20)
+    pos = nx.shell_layout(G) # Create positions of all nodes and save them
+    #nx.draw(G, pos, with_labels=True) # Draw the graph according to node positions
+    #nx.draw_networkx_nodes(G,pos,node_size = 100)
+
+    labels = nx.get_edge_attributes(G,'weight') # Create edge labels
+    #plt.figure(3,figsize=(24,24)) 
+    nx.draw_networkx(G,pos,node_size= 50, font_size = 8)
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=labels, font_size= 6) # Draw edge labels according to node positions
+    
+
+    plt.show()
+    
+def main(): 
     create_animal_dict("2015_data.json")
+
 
 # Call to main 
 main()
+# %%
